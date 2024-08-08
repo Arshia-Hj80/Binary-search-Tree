@@ -1,0 +1,313 @@
+include 'emu8086.inc'
+     
+.model small
+.stack 100h
+.data
+     
+    ;menu messages
+    menu_option_message1 db '1. Add A New Node$'
+    menu_option_message2 db '2. Search A Value$'
+    menu_option_message3 db '3. Display Binary Tree$'
+    menu_option_message0 db '0. Exit$'
+    
+    ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    
+    imsg db 'What Do You Want To Do ? : $'
+    
+    temp_i db 1
+    
+    ;books details
+    tree db 200 dup(-1)   'create array 220 (-1)'
+    Nodecount db 0
+    
+    ;messages for each operation:
+    op1msg1 db 'Please Enter Value of the new node: $'
+    op1msg2 db ' Added to the tree successfully.$'
+    op2msg1 db 'Please Enter Value to Search: $'
+    op2msg2 db 'Value Found in the Tree.$'
+    op2msg3 db 'Value Not Found in the Tree.$'
+                                  
+.code
+
+;;;;;;;;;; GENERAL FUNCTIONS ;;;;;;;;;;
+
+;Enter to Continue
+proc etc
+   etcin:
+      mov ah,1
+      int 21h
+      cmp al,13
+      je mainloop
+      jmp etcin
+   ret 
+etc endp
+                
+clearScreen proc near
+    call newLine
+    call newLine
+    ret    
+clearScreen endp
+                                     
+newLine proc near   
+    mov ah,2
+    mov dl,10
+    int 21h
+    mov dl,13
+    int 21h    
+    ret
+newLine endp
+   
+macro printString str   
+  mov ah,9
+  lea dx,str
+  int 21h
+endm
+
+;;;;;;;;;; MENU PROCEDURE ;;;;;;;;;;
+
+DisplayMenu proc near   
+    call newLine 
+    printString menu_option_message1
+    call newLine
+    printString menu_option_message2
+    call newLine
+    printString menu_option_message3
+    call newLine
+    printString menu_option_message0
+    call newLine
+    ret        
+DisplayMenu endp
+
+;;;;;;;;;; ADDING A NEW NODE ;;;;;;;;;;
+
+AddNode proc
+    call clearScreen
+    printString op1msg1
+    CALL scan_num
+    
+    mov temp_i ,1
+    lea bx, tree
+    cmp Nodecount,0
+    jne findemptyleaf
+    lea bx, tree
+    mov [bx], cl
+    jmp endadd
+    
+    findemptyleaf:
+    lea bx , tree
+    mov ax , 0
+    mov al , temp_i
+    dec ax
+    add bx, ax 
+    cmp cl, [bx]
+    jge rightleaf
+    jmp leftleaf
+    
+    leftleaf:
+    mov ax, 0
+    mov al, 2
+    mul temp_i
+    mov temp_i, al
+    dec ax
+    lea bx, tree
+    add bx, ax
+    cmp [bx], -1
+    je addleaf
+    jmp findemptyleaf
+    
+    rightleaf:
+    mov ax, 0
+    mov al, 2
+    mul temp_i
+    inc ax
+    mov temp_i, al
+    dec ax
+    lea bx, tree
+    add bx, ax
+    cmp [bx], -1
+    je addleaf
+    jmp findemptyleaf
+    
+    addleaf:
+    mov [bx], cl
+    jmp endadd
+    
+    endadd:
+    inc Nodecount
+    call newLine
+    mov ax, cx
+    CALL print_num
+    printString op1msg2
+    
+    call newLine
+    call newLine
+    call etc
+    ret
+AddNode endp 
+
+;;;;;;;;;; SEARCHING A NODE ;;;;;;;;;;
+
+searchnode proc
+    call clearScreen
+    printString op2msg1
+    CALL scan_num
+    
+    mov temp_i, 1
+    lea bx, tree
+    cmp Nodecount, 0
+    je notfound
+    
+    findnode:
+    lea bx, tree
+    mov ax, 0
+    mov al, temp_i
+    dec ax
+    add bx, ax
+    cmp cl, [bx]
+    je found
+    jge rightsearch
+    jmp leftsearch
+    
+    leftsearch:
+    mov ax, 0
+    mov al, 2
+    mul temp_i
+    mov temp_i, al
+    dec ax
+    lea bx, tree
+    add bx, ax
+    cmp [bx], -1
+    je notfound
+    jmp findnode
+    
+    rightsearch:
+    mov ax, 0
+    mov al, 2
+    mul temp_i
+    inc ax
+    mov temp_i, al
+    dec ax
+    lea bx, tree
+    add bx, ax
+    cmp [bx], -1
+    je notfound
+    jmp findnode
+    
+    found:
+    printString op2msg2
+    jmp endsearch
+    
+    notfound:
+    printString op2msg3
+    
+    endsearch:
+    call newLine
+    call newLine
+    call etc
+    ret
+searchnode endp 
+
+;;;;;;;;;; DISPLAYING THE BINARY TREE ;;;;;;;;;;
+
+display_binary_tree PROC
+    call clearScreen
+    mov si, 1
+    mov cx, 0  ; Current level
+    call display_node
+    ret
+display_binary_tree ENDP
+
+display_node PROC
+    push cx
+    push si
+    
+    cmp byte ptr [tree + si - 1], -1
+    je end_display_node
+    
+    ; Display left child
+    mov ax, si
+    shl ax, 1
+    push si
+    mov si, ax
+    inc cx
+    call display_node
+    pop si
+    
+    ; Display current node
+    mov ax, cx
+    shl ax, 1  ; Multiply by 2 for indentation
+    call print_spaces
+    mov al, [tree + si - 1]
+    cbw  ; Convert byte to word
+    call print_num
+    call newLine
+    
+    ; Display right child
+    mov ax, si
+    shl ax, 1
+    add ax, 1
+    push si
+    mov si, ax
+    inc cx
+    call display_node
+    pop si
+    
+end_display_node:
+    pop si
+    pop cx
+    ret
+display_node ENDP
+
+print_spaces PROC
+    push cx
+    mov cx, ax
+print_space_loop:
+    cmp cx, 0
+    je end_print_spaces
+    print ' '
+    dec cx
+    jmp print_space_loop
+end_print_spaces:
+    pop cx
+    ret
+print_spaces ENDP    
+
+;;;;;;;;;; MAIN PROCEDURE ;;;;;;;;;; 
+
+Main proc
+    mov ax,@data
+    mov ds,ax
+
+    mainloop:
+        call clearScreen
+        call DisplayMenu
+        printString imsg
+        CALL scan_num
+        
+        cmp cx, 0         
+        je exit
+        
+        cmp cx, 1
+        je AddNode
+        
+        cmp cx, 2
+        je searchnode 
+        
+        cmp cx, 3
+        je display_binary_tree
+        
+        jmp mainloop
+                       
+    exit:
+      call newLine
+      call newLine
+      call newLine
+      mov ah,4ch
+      int 21h
+    
+    main endp
+
+DEFINE_SCAN_NUM
+DEFINE_PRINT_NUM
+DEFINE_PRINT_NUM_UNS  ; required for print_num.
+end main
